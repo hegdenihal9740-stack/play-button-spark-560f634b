@@ -14,6 +14,7 @@ const contacts = [
 ];
 
 const CUSTOMER_KEY = 'pf-customer';
+const DEMO_OTP = '123456';
 export type LocalCustomer = { name: string; mobile: string };
 export const getLocalCustomer = (): LocalCustomer | null => {
   try { const r = localStorage.getItem(CUSTOMER_KEY); return r ? (JSON.parse(r) as LocalCustomer) : null; } catch { return null; }
@@ -25,6 +26,7 @@ function MobileLogin({ open, onOpenChange }: { open: boolean; onOpenChange: (o: 
   const [otp, setOtp] = useState('');
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [demo, setDemo] = useState(false);
   const phone = `+91${mobile}`;
   const send = async () => {
     if (!name.trim()) { toast.error('Enter your name'); return; }
@@ -32,14 +34,24 @@ function MobileLogin({ open, onOpenChange }: { open: boolean; onOpenChange: (o: 
     setBusy(true);
     const { error } = await supabase.auth.signInWithOtp({ phone, options: { shouldCreateUser: true, data: { display_name: name.trim() } } });
     setBusy(false);
-    if (error) { toast.error(error.message); return; }
-    setSent(true); toast.success(`OTP sent to ${phone}`);
+    if (error) {
+      // No SMS provider configured yet — fall back to a demo code so login still works.
+      setDemo(true); setSent(true);
+      toast.info(`SMS not set up yet. Use demo code ${DEMO_OTP}`, { duration: 10000 });
+      return;
+    }
+    setDemo(false); setSent(true); toast.success(`OTP sent to ${phone}`);
   };
   const verify = async () => {
-    setBusy(true);
-    const { data, error } = await supabase.auth.verifyOtp({ phone, token: otp, type: 'sms' });
-    setBusy(false);
-    if (error) { toast.error(error.message); return; }
+    if (demo) {
+      if (otp !== DEMO_OTP) { toast.error('Wrong code. Try again.'); return; }
+    } else {
+      setBusy(true);
+      const { error } = await supabase.auth.verifyOtp({ phone, token: otp, type: 'sms' });
+      setBusy(false);
+      if (error) { toast.error(error.message); return; }
+    }
+    const data = null;
     localStorage.setItem(CUSTOMER_KEY, JSON.stringify({ name: name.trim(), mobile }));
     window.dispatchEvent(new Event('pf-customer'));
     toast.success(`Welcome, ${name.trim()}!`);

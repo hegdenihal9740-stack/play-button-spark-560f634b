@@ -27,7 +27,7 @@ function AuthPage() {
   const [error, setError] = useState('');
   useEffect(() => {
     if (!user) return;
-    void supabase.from('profiles').select('display_name').eq('id', user.id).maybeSingle().then(({ data, error }) => {
+    void (supabase as any).from('profiles').select('display_name').eq('id', user.id).maybeSingle().then(({ data, error }: { data: { display_name?: string } | null; error: unknown }) => {
       if (error) setError('Your profile could not be loaded. Please try again.');
       else setName(data?.display_name ?? '');
     });
@@ -37,7 +37,7 @@ function AuthPage() {
     event.preventDefault(); setBusy(true); setError(''); setMessage('');
     try {
       if (user) {
-        const { error } = await supabase.from('profiles').upsert({ id: user.id, display_name: name.trim() });
+        const { error } = await (supabase as any).from('profiles').upsert({ id: user.id, display_name: name.trim() });
         if (error) throw error;
         setMessage('Your profile has been saved.');
       } else if (mode === 'register') {
