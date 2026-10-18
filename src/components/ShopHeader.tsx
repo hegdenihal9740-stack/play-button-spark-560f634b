@@ -15,7 +15,6 @@ const contacts = [
 ];
 
 const CUSTOMER_KEY = 'pf-customer';
-const DEMO_OTP = '123456';
 export type LocalCustomer = { name: string; mobile: string };
 export const getLocalCustomer = (): LocalCustomer | null => {
   try { const r = localStorage.getItem(CUSTOMER_KEY); return r ? (JSON.parse(r) as LocalCustomer) : null; } catch { return null; }
@@ -23,56 +22,43 @@ export const getLocalCustomer = (): LocalCustomer | null => {
 
 function MobileLogin({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const [name, setName] = useState('');
-  const [mobile, setMobile] = useState('');
+  const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [demo, setDemo] = useState(false);
-  const phone = `+91${mobile}`;
   const send = async () => {
     if (!name.trim()) { toast.error('Enter your name'); return; }
-    if (!/^[6-9]\d{9}$/.test(mobile)) { toast.error('Enter a valid 10-digit mobile number'); return; }
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) { toast.error('Enter a valid email'); return; }
     setBusy(true);
-    const { error } = await supabase.auth.signInWithOtp({ phone, options: { shouldCreateUser: true, data: { display_name: name.trim() } } });
+    const { error } = await supabase.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: true, emailRedirectTo: window.location.origin, data: { display_name: name.trim() } } });
     setBusy(false);
-    if (error) {
-      // No SMS provider configured yet — fall back to a demo code so login still works.
-      setDemo(true); setSent(true);
-      toast.info(`SMS not set up yet. Use demo code ${DEMO_OTP}`, { duration: 10000 });
-      return;
-    }
-    setDemo(false); setSent(true); toast.success(`OTP sent to ${phone}`);
+    if (error) { toast.error(`Could not send code: ${error.message}`); return; }
+    setSent(true); toast.success(`Code sent to ${email.trim()}. Check your inbox.`);
   };
   const verify = async () => {
-    if (demo) {
-      if (otp !== DEMO_OTP) { toast.error('Wrong code. Try again.'); return; }
-    } else {
-      setBusy(true);
-      const { error } = await supabase.auth.verifyOtp({ phone, token: otp, type: 'sms' });
-      setBusy(false);
-      if (error) { toast.error(error.message); return; }
-    }
-    const data = null;
-    localStorage.setItem(CUSTOMER_KEY, JSON.stringify({ name: name.trim(), mobile }));
+    setBusy(true);
+    const { error } = await supabase.auth.verifyOtp({ email: email.trim(), token: otp, type: 'email' });
+    setBusy(false);
+    if (error) { toast.error(error.message); return; }
+    localStorage.setItem(CUSTOMER_KEY, JSON.stringify({ name: name.trim(), mobile: '' }));
     window.dispatchEvent(new Event('pf-customer'));
     toast.success(`Welcome, ${name.trim()}!`);
     onOpenChange(false); setSent(false); setOtp('');
-    void data;
   };
   const google = async () => {
     setBusy(true);
     const result = await lovable.auth.signInWithOAuth('google', { redirect_uri: window.location.origin });
     setBusy(false);
-    if (result.error) { toast.error('Google sign-in failed. Please try again.'); return; }
+    if (result.error) { toast.error(`Google sign-in failed: ${result.error.message}`); return; }
     if (!result.redirected) onOpenChange(false);
   };
   return <Dialog open={open} onOpenChange={onOpenChange}>
     <DialogContent className="shop-login">
       <DialogTitle className="shop-login-title">Login / Register</DialogTitle>
       <button type="button" className="fk-buy shop-login-btn" disabled={busy} onClick={google}>Continue with Google</button>
-      <DialogDescription className="shop-login-sub">Or get a one-time code (OTP) on your mobile number.</DialogDescription>
+      <DialogDescription className="shop-login-sub">Or get a one-time code on your email.</DialogDescription>
       <input className="shop-input" placeholder="Full name" value={name} onChange={(e) => setName(e.target.value)} disabled={sent} />
-      <div className="shop-phone"><span>+91</span><input inputMode="numeric" maxLength={10} placeholder="Mobile number" value={mobile} onChange={(e) => setMobile(e.target.value.replace(/\D/g, ''))} disabled={sent} /></div>
+      <input className="shop-input" type="email" placeholder="Email address" value={email} onChange={(e) => setEmail(e.target.value)} disabled={sent} />
       {sent && <input className="shop-input" inputMode="numeric" maxLength={6} placeholder="Enter 6-digit OTP" value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))} />}
       <button type="button" className="fk-buy shop-login-btn" disabled={busy} onClick={sent ? verify : send}>{busy ? 'Please wait…' : sent ? 'Verify OTP' : 'Send OTP'}</button>
     </DialogContent>
