@@ -86,7 +86,7 @@ export function ShopHeader() {
     const read = () => setCustomer(getLocalCustomer());
     const fromSession = (user: { email?: string; user_metadata?: Record<string, unknown> } | null | undefined) => {
       if (!user || getLocalCustomer()) return;
-      const name = String(user.user_metadata?.full_name ?? user.user_metadata?.name ?? user.email ?? 'Customer');
+      const name = String(user.user_metadata?.['full_name'] ?? user.user_metadata?.['name'] ?? user.email ?? 'Customer');
       localStorage.setItem(CUSTOMER_KEY, JSON.stringify({ name, mobile: '' }));
       read();
     };
