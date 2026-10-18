@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { cart, useCart } from '@/lib/cart';
 import { supabase } from '@/integrations/supabase/client';
+import { lovable } from '@/integrations/lovable';
 
 // Contact links — placeholders until the owner shares real accounts.
 const contacts = [
@@ -58,10 +59,18 @@ function MobileLogin({ open, onOpenChange }: { open: boolean; onOpenChange: (o: 
     onOpenChange(false); setSent(false); setOtp('');
     void data;
   };
+  const google = async () => {
+    setBusy(true);
+    const result = await lovable.auth.signInWithOAuth('google', { redirect_uri: window.location.origin });
+    setBusy(false);
+    if (result.error) { toast.error('Google sign-in failed. Please try again.'); return; }
+    if (!result.redirected) onOpenChange(false);
+  };
   return <Dialog open={open} onOpenChange={onOpenChange}>
     <DialogContent className="shop-login">
       <DialogTitle className="shop-login-title">Login / Register</DialogTitle>
-      <DialogDescription className="shop-login-sub">We will send a one-time code (OTP) to your mobile number.</DialogDescription>
+      <button type="button" className="fk-buy shop-login-btn" disabled={busy} onClick={google}>Continue with Google</button>
+      <DialogDescription className="shop-login-sub">Or get a one-time code (OTP) on your mobile number.</DialogDescription>
       <input className="shop-input" placeholder="Full name" value={name} onChange={(e) => setName(e.target.value)} disabled={sent} />
       <div className="shop-phone"><span>+91</span><input inputMode="numeric" maxLength={10} placeholder="Mobile number" value={mobile} onChange={(e) => setMobile(e.target.value.replace(/\D/g, ''))} disabled={sent} /></div>
       {sent && <input className="shop-input" inputMode="numeric" maxLength={6} placeholder="Enter 6-digit OTP" value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))} />}
@@ -76,9 +85,19 @@ export function ShopHeader() {
   const [customer, setCustomer] = useState<LocalCustomer | null>(null);
   useEffect(() => {
     const read = () => setCustomer(getLocalCustomer());
+    const fromSession = (user: { email?: string; user_metadata?: Record<string, unknown> } | null | undefined) => {
+      if (!user || getLocalCustomer()) return;
+      const name = String(user.user_metadata?.['full_name'] ?? user.user_metadata?.['name'] ?? user.email ?? 'Customer');
+      localStorage.setItem(CUSTOMER_KEY, JSON.stringify({ name, mobile: '' }));
+      read();
+    };
     read();
+    void supabase.auth.getUser().then(({ data }) => fromSession(data.user));
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN') { fromSession(session?.user); toast.success('Signed in with Google'); }
+    });
     window.addEventListener('pf-customer', read);
-    return () => window.removeEventListener('pf-customer', read);
+    return () => { window.removeEventListener('pf-customer', read); sub.subscription.unsubscribe(); };
   }, []);
   const { count } = useCart();
   return <header className="shop-header">
