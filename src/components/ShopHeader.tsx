@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { cart, useCart } from '@/lib/cart';
 import { supabase } from '@/integrations/supabase/client';
+import { lovable } from '@/integrations/lovable';
 
 // Contact links — placeholders until the owner shares real accounts.
 const contacts = [
